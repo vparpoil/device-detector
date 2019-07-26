@@ -17,10 +17,17 @@ use DeviceDetector\Parser\Client\Browser\Engine;
  *
  * Client parser for browser detection
  */
-class Browser extends ClientParserAbstract
+class Browser extends AbstractClientParser
 {
+    /**
+     * @var string
+     */
     protected $fixtureFile = 'regexes/client/browsers.yml';
-    protected $parserName  = 'browser';
+
+    /**
+     * @var string
+     */
+    protected $parserName = 'browser';
 
     /**
      * Known browsers mapped to their internal short codes
@@ -277,8 +284,19 @@ class Browser extends ClientParserAbstract
         'BlackBerry Browser' => ['BB'],
         'Baidu'              => ['BD', 'BS'],
         'Amiga'              => ['AV', 'AW'],
-        'Chrome'             => ['CH', 'BA', 'BR', 'CC', 'CD', 'CM', 'CI', 'CF', 'CN', 'CR', 'CP', 'DD', 'IR', 'RM', 'AO', 'TS', 'VI', 'PT', 'AS', 'TB', 'AD', 'SB', 'WP', 'I3', 'CV', 'WH', 'SZ', 'QW', 'LF', 'KW', '2B', 'CE', 'EC', 'MT', 'MS', 'HA', 'OC', 'MZ', 'BM', 'KN', 'SW', 'M1', 'FA', 'TA', 'AH', 'CL', 'SU', 'EU', 'UB', 'LO', 'VG'],
-        'Firefox'            => ['FF', 'FE', 'FM', 'SX', 'FB', 'PX', 'MB', 'EI', 'WF', 'CU', 'TF', 'QM', 'FR', 'I4', 'GZ', 'MO', 'F1', 'BI', 'MN', 'BH', 'TO', 'OS', 'FY'],
+        'Chrome'             => [
+            'CH', 'BA', 'BR', 'CC', 'CD', 'CM', 'CI', 'CF', 'CN',
+            'CR', 'CP', 'DD', 'IR', 'RM', 'AO', 'TS', 'VI', 'PT',
+            'AS', 'TB', 'AD', 'SB', 'WP', 'I3', 'CV', 'WH', 'SZ',
+            'QW', 'LF', 'KW', '2B', 'CE', 'EC', 'MT', 'MS', 'HA',
+            'OC', 'MZ', 'BM', 'KN', 'SW', 'M1', 'FA', 'TA', 'AH',
+            'CL', 'SU', 'EU', 'UB', 'LO', 'VG',
+        ],
+        'Firefox'            => [
+            'FF', 'FE', 'FM', 'SX', 'FB', 'PX', 'MB', 'EI', 'WF',
+            'CU', 'TF', 'QM', 'FR', 'I4', 'GZ', 'MO', 'F1', 'BI',
+            'MN', 'BH', 'TO', 'OS', 'FY',
+        ],
         'Internet Explorer'  => ['IE', 'IM', 'PS'],
         'Konqueror'          => ['KO'],
         'NetFront'           => ['NF'],
@@ -320,9 +338,9 @@ class Browser extends ClientParserAbstract
     /**
      * @param string $browserLabel
      *
-     * @return bool|string If false, "Unknown"
+     * @return string|null If null, "Unknown"
      */
-    public static function getBrowserFamily(string $browserLabel)
+    public static function getBrowserFamily(string $browserLabel): ?string
     {
         foreach (self::$browserFamilies as $browserFamily => $browserLabels) {
             if (in_array($browserLabel, $browserLabels)) {
@@ -330,7 +348,7 @@ class Browser extends ClientParserAbstract
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
@@ -342,9 +360,13 @@ class Browser extends ClientParserAbstract
      */
     public static function isMobileOnlyBrowser(string $browser): bool
     {
-        return in_array($browser, self::$mobileOnlyBrowsers) || (in_array($browser, self::$availableBrowsers) && in_array(array_search($browser, self::$availableBrowsers), self::$mobileOnlyBrowsers));
+        return in_array($browser, self::$mobileOnlyBrowsers) || (in_array($browser, self::$availableBrowsers)
+                && in_array(array_search($browser, self::$availableBrowsers), self::$mobileOnlyBrowsers));
     }
 
+    /**
+     * @inheritdoc
+     */
     public function parse(): ?array
     {
         foreach ($this->getRegexes() as $regex) {
@@ -362,7 +384,7 @@ class Browser extends ClientParserAbstract
         $name = $this->buildByMatch($regex['name'], $matches);
 
         foreach (self::getAvailableBrowsers() as $browserShort => $browserName) {
-            if (strtolower($name) == strtolower($browserName)) {
+            if (strtolower($name) === strtolower($browserName)) {
                 $version       = $this->buildVersion((string) $regex['version'], $matches);
                 $engine        = $this->buildEngine($regex['engine'] ?? [], $version);
                 $engineVersion = $this->buildEngineVersion($engine);
@@ -382,7 +404,13 @@ class Browser extends ClientParserAbstract
         throw new \Exception(sprintf('Detected browser name "%s" was not found in $availableBrowsers. Tried to parse user agent: %s', $name, $this->userAgent)); // @codeCoverageIgnore
     }
 
-    protected function buildEngine($engineData, $browserVersion): string
+    /**
+     * @param array  $engineData
+     * @param string $browserVersion
+     *
+     * @return string
+     */
+    protected function buildEngine(array $engineData, string $browserVersion): string
     {
         $engine = '';
 
@@ -415,7 +443,12 @@ class Browser extends ClientParserAbstract
         return $engine;
     }
 
-    protected function buildEngineVersion($engine): string
+    /**
+     * @param string $engine
+     *
+     * @return string
+     */
+    protected function buildEngineVersion(string $engine): string
     {
         $engineVersionParser = new Engine\Version($this->userAgent, $engine);
 
