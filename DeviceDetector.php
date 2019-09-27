@@ -843,7 +843,7 @@ class DeviceDetector
          * See https://developer.chrome.com/multidevice/user-agent#chrome_for_android_user_agent
          */
         if (null === $this->device && 'Android' === $osFamily
-            && 'Chrome' == Browser::getBrowserFamily($this->getClient('short_name'))
+            && 'Chrome' === Browser::getBrowserFamily($this->getClientAttribute('name'))
         ) {
             if ($this->matchUserAgent('Chrome/[\.0-9]* Mobile')) {
                 $this->device = AbstractDeviceParser::DEVICE_TYPE_SMARTPHONE;

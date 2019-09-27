@@ -410,7 +410,11 @@ class Browser extends AbstractClientParser
         }
 
         // This Exception should never be thrown. If so a defined browser name is missing in $availableBrowsers
-        throw new \Exception(sprintf('Detected browser name "%s" was not found in $availableBrowsers. Tried to parse user agent: %s', $name, $this->userAgent)); // @codeCoverageIgnore
+        throw new \Exception(sprintf(
+            'Detected browser name "%s" was not found in $availableBrowsers. Tried to parse user agent: %s',
+            $name,
+            $this->userAgent
+        )); // @codeCoverageIgnore
     }
 
     /**
