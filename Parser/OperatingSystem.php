@@ -47,6 +47,7 @@ class OperatingSystem extends AbstractParser
         'BLB' => 'BlackBerry OS',
         'QNX' => 'BlackBerry Tablet OS',
         'BMP' => 'Brew',
+        'CAI' => 'Caixa Mágica',
         'CES' => 'CentOS',
         'COS' => 'Chrome OS',
         'CYN' => 'CyanogenMod',
@@ -61,9 +62,11 @@ class OperatingSystem extends AbstractParser
         'BSD' => 'FreeBSD',
         'FYD' => 'FydeOS',
         'GNT' => 'Gentoo',
+        'GRI' => 'GridOS',
         'GTV' => 'Google TV',
         'HPX' => 'HP-UX',
         'HAI' => 'Haiku OS',
+        'HAS' => 'HasCodingOS',
         'IRI' => 'IRIX',
         'INF' => 'Inferno',
         'KOS' => 'KaiOS',
@@ -90,6 +93,7 @@ class OperatingSystem extends AbstractParser
         'T64' => 'OSF1',
         'OBS' => 'OpenBSD',
         'ORD' => 'Ordissimo',
+        'PCL' => 'PCLinuxOS',
         'PSP' => 'PlayStation Portable',
         'PS3' => 'PlayStation',
         'RHT' => 'Red Hat',
@@ -136,7 +140,7 @@ class OperatingSystem extends AbstractParser
      * @var array
      */
     protected static $osFamilies = [
-        'Android'               => ['AND', 'CYN', 'FIR', 'REM', 'RZD', 'MLD', 'MCD', 'YNS'],
+        'Android'               => ['AND', 'CYN', 'FIR', 'REM', 'RZD', 'MLD', 'MCD', 'YNS', 'GRI'],
         'AmigaOS'               => ['AMG', 'MOR'],
         'Apple TV'              => ['ATV'],
         'BlackBerry'            => ['BLB', 'QNX'],
@@ -152,7 +156,7 @@ class OperatingSystem extends AbstractParser
         'GNU/Linux'             => [
             'LIN', 'ARL', 'DEB', 'KNO', 'MIN', 'UBT', 'KBT', 'XBT', 'LBT', 'FED',
             'RHT', 'VLN', 'MDR', 'GNT', 'SAB', 'SLW', 'SSE', 'CES', 'BTR', 'SAF',
-            'ORD', 'TOS', 'RSO', 'DEE', 'FRE', 'MAG', 'FEN',
+            'ORD', 'TOS', 'RSO', 'DEE', 'FRE', 'MAG', 'FEN', 'CAI', 'PCL', 'HAS',
         ],
         'Mac'                   => ['MAC'],
         'Mobile Gaming Console' => ['PSP', 'NDS', 'XBX'],
@@ -293,7 +297,7 @@ class OperatingSystem extends AbstractParser
             return 'x64';
         }
 
-        if ($this->matchUserAgent('i[0-9]86|i86pc')) {
+        if ($this->matchUserAgent('(?:i[0-9]|x)86|i86pc')) {
             return 'x86';
         }
 
