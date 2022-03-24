@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Device Detector - The Universal Device Detection library for parsing User Agents
  *
@@ -10,12 +8,15 @@ declare(strict_types=1);
  * @license http://www.gnu.org/licenses/lgpl.html LGPL v3 or later
  */
 
+declare(strict_types=1);
+
 namespace DeviceDetector\Tests\Parser\Client;
 
-use \Spyc;
+use DeviceDetector\ClientHints;
 use DeviceDetector\Parser\Client\Browser;
 use DeviceDetector\Parser\Client\Browser\Engine;
 use PHPUnit\Framework\TestCase;
+use Spyc;
 
 class BrowserTest extends TestCase
 {
@@ -24,11 +25,16 @@ class BrowserTest extends TestCase
     /**
      * @dataProvider getFixtures
      */
-    public function testParse(string $useragent, array $client): void
+    public function testParse(string $useragent, array $client, ?array $headers = null): void
     {
         $browserParser = new Browser();
         $browserParser->setVersionTruncation(Browser::VERSION_TRUNCATION_NONE);
         $browserParser->setUserAgent($useragent);
+
+        if (null !== $headers) {
+            $browserParser->setClientHints(ClientHints::factory($headers));
+        }
+
         $browser = $browserParser->parse();
         unset($browser['short_name']);
 
@@ -78,6 +84,23 @@ class BrowserTest extends TestCase
             $this->assertIsString($item['regex']);
             $this->assertIsString($item['name']);
             $this->assertIsString($item['version']);
+        }
+    }
+
+    public function testBrowserFamiliesNoDuplicates(): void
+    {
+        $browsers = Browser::getAvailableBrowserFamilies();
+
+        foreach ($browsers as $browser => $families) {
+            $shortcodes = \array_count_values($families);
+
+            foreach ($shortcodes as $shortcode => $count) {
+                $this->assertEquals(
+                    $count,
+                    1,
+                    "Family {$browser}: contains duplicate of shortcode {$shortcode}"
+                );
+            }
         }
     }
 

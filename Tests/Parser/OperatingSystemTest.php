@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Device Detector - The Universal Device Detection library for parsing User Agents
  *
@@ -10,11 +8,14 @@ declare(strict_types=1);
  * @license http://www.gnu.org/licenses/lgpl.html LGPL v3 or later
  */
 
+declare(strict_types=1);
+
 namespace DeviceDetector\Tests\Parser;
 
-use \Spyc;
+use DeviceDetector\ClientHints;
 use DeviceDetector\Parser\OperatingSystem;
 use PHPUnit\Framework\TestCase;
+use Spyc;
 
 class OperatingSystemTest extends TestCase
 {
@@ -23,10 +24,15 @@ class OperatingSystemTest extends TestCase
     /**
      * @dataProvider getFixtures
      */
-    public function testParse(string $useragent, array $os): void
+    public function testParse(string $useragent, array $os, ?array $headers = null): void
     {
         $osParser = new OperatingSystem();
         $osParser->setUserAgent($useragent);
+
+        if (null !== $headers) {
+            $osParser->setClientHints(ClientHints::factory($headers));
+        }
+
         $this->assertEquals($os, $osParser->parse(), "UserAgent: {$useragent}");
         self::$osTested[] = $os['name'];
     }
@@ -103,6 +109,6 @@ class OperatingSystemTest extends TestCase
     {
         $allBrowsers = OperatingSystem::getAvailableOperatingSystems();
         $osNotTested = \array_diff($allBrowsers, self::$osTested);
-        $this->assertEmpty($osNotTested, 'Following browsers are not tested: ' . \implode(', ', $osNotTested));
+        $this->assertEmpty($osNotTested, 'Following oss are not tested: ' . \implode(', ', $osNotTested));
     }
 }

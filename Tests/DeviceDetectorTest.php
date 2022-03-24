@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 /**
  * Device Detector - The Universal Device Detection library for parsing User Agents
  *
@@ -10,13 +8,17 @@ declare(strict_types=1);
  * @license http://www.gnu.org/licenses/lgpl.html LGPL v3 or later
  */
 
+declare(strict_types=1);
+
 namespace DeviceDetector\Tests;
 
 use DeviceDetector\Cache\DoctrineBridge;
+use DeviceDetector\ClientHints;
 use DeviceDetector\DeviceDetector;
 use DeviceDetector\Parser\AbstractParser;
 use DeviceDetector\Parser\Device\AbstractDeviceParser;
 use DeviceDetector\Yaml\Symfony;
+use Doctrine\Common\Cache\MemcachedCache;
 use PHPUnit\Framework\TestCase;
 
 class DeviceDetectorTest extends TestCase
@@ -148,7 +150,7 @@ class DeviceDetectorTest extends TestCase
 
         $dd            = new DeviceDetector();
         $memcached     = new \Memcached();
-        $doctrineCache = new \Doctrine\Common\Cache\MemcachedCache();
+        $doctrineCache = new MemcachedCache();
         $doctrineCache->setMemcached($memcached);
         $dd->setCache(new DoctrineBridge($doctrineCache));
         $this->assertInstanceOf(DoctrineBridge::class, $dd->getCache());
@@ -184,12 +186,13 @@ class DeviceDetectorTest extends TestCase
      */
     public function testParse(array $fixtureData): void
     {
-        $ua = $fixtureData['user_agent'];
+        $ua          = $fixtureData['user_agent'];
+        $clientHints = !empty($fixtureData['headers']) ? ClientHints::factory($fixtureData['headers']) : null;
 
         AbstractDeviceParser::setVersionTruncation(AbstractDeviceParser::VERSION_TRUNCATION_NONE);
 
         try {
-            $uaInfo = DeviceDetector::getInfoFromUserAgent($ua);
+            $uaInfo = DeviceDetector::getInfoFromUserAgent($ua, $clientHints);
         } catch (\Exception $exception) {
             throw new \Exception(
                 \sprintf('Error: %s from useragent %s', $exception->getMessage(), $ua),
@@ -198,7 +201,15 @@ class DeviceDetectorTest extends TestCase
             );
         }
 
-        $this->assertEquals($fixtureData, $uaInfo, "UserAgent: {$ua}");
+        $errorMessage = \sprintf(
+            "UserAgent: %s\nHeaders: %s",
+            $ua,
+            \print_r($fixtureData['headers'] ?? null, true)
+        );
+
+        unset($fixtureData['headers']); // ignore headers in result
+
+        $this->assertEquals($fixtureData, $uaInfo, $errorMessage);
     }
 
     public function getFixtures(): array
@@ -412,6 +423,8 @@ class DeviceDetectorTest extends TestCase
     public function getUserAgents(): array
     {
         return [
+            ['Mozilla/5.0 (Linux; U; Android 5.1.1; zh-CN; TEST-XXXXX Build/LMY47V) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/78.0.3904.108 Quark/5.3.3.191 Mobile Safari/537.36', false, true, false],
+            ['Mozilla/5.0 (Linux; Android 10; HarmonyOS; TEST-XXXXX ; HMSCore 6.1.0.314) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.93 HuaweiBrowser/11.1.5.310 Mobile Safari/537.36', false, true, false],
             ['Googlebot/2.1 (http://www.googlebot.com/bot.html)', true, false, false],
             ['Mozilla/5.0 (Linux; Android 4.4.2; Nexus 4 Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.136 Mobile Safari/537.36', false, true, false],
             ['Mozilla/5.0 (Linux; Android 4.4.3; Build/KTU84L) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.117 Mobile Safari/537.36', false, true, false],
@@ -437,6 +450,7 @@ class DeviceDetectorTest extends TestCase
             'short_name' => 'WIN',
             'version'    => '7',
             'platform'   => 'x64',
+            'family'     => 'Windows',
         ];
         $this->assertEquals($expected, $dd->getOs());
     }
@@ -453,6 +467,7 @@ class DeviceDetectorTest extends TestCase
             'version'        => '9.0',
             'engine'         => 'Trident',
             'engine_version' => '5.0',
+            'family'         => 'Internet Explorer',
         ];
         $this->assertEquals($expected, $dd->getClient());
     }
@@ -519,6 +534,21 @@ class DeviceDetectorTest extends TestCase
         $this->assertTrue($this->checkRegexRestrictionEndCondition('TestValue(?:[/); ]|$)'), 'pass condition');
         $this->assertTrue($this->checkRegexRestrictionEndCondition('TestValue(?:[);/]|$)'), 'pass condition');
         $this->assertTrue($this->checkRegexRestrictionEndCondition('TestValue(?:[;)/]|$)'), 'pass condition');
+    }
+
+    /**
+     * Checks the AbstractDeviceParser::$deviceBrands for duplicate brands
+     */
+    public function testDuplicateBrands(): void
+    {
+        $brands     = \array_map('strtolower', AbstractDeviceParser::$deviceBrands);
+        $unique     = \array_unique($brands);
+        $duplicates = \array_diff_assoc($brands, $unique);
+
+        $this->assertCount(0, $duplicates, \sprintf(
+            'Duplicate brands exists: %s',
+            \print_r($duplicates, true)
+        ));
     }
 
     /**

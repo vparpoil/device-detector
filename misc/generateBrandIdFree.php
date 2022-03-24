@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use DeviceDetector\Parser\Client\Browser;
 use DeviceDetector\Parser\Device\AbstractDeviceParser;
 
 if ('cli' !== php_sapi_name()) {
@@ -28,11 +29,14 @@ for ($y = 0; $y < 36; $y++) {
 $brandExistIds = array_keys(AbstractDeviceParser::$deviceBrands);
 $brandFreeIds  = array_diff($mapIds, $brandExistIds);
 
+$browserExistIds = array_keys(Browser::getAvailableBrowsers());
+$browserFreeIds  = array_diff($mapIds, $browserExistIds);
+
 function pettyTable(array $data): string
 {
     $columns = [];
 
-    foreach ($data as $rowKey => $row) {
+    foreach ($data as $row) {
         foreach ($row as $cellKey => $cell) {
             $length = strlen($cell);
 
@@ -46,7 +50,7 @@ function pettyTable(array $data): string
 
     $table = '';
 
-    foreach ($data as $rowKey => $row) {
+    foreach ($data as $row) {
         foreach ($row as $cellKey => $cell) {
             $table .= str_pad($cell, $columns[$cellKey]) . '   ';
         }
@@ -58,7 +62,13 @@ function pettyTable(array $data): string
 }
 
 $chunkSize = 20;
-echo sprintf("Free count ids: %s\n", count($brandFreeIds));
+
+echo sprintf("Free count brands for ids: %s\n", count($brandFreeIds));
 echo str_repeat('=====', $chunkSize) . "\n";
 echo pettyTable(array_chunk($brandFreeIds, $chunkSize, true));
+echo str_repeat('=====', $chunkSize) . "\n";
+
+echo sprintf("Free count browsers for ids: %s\n", count($browserFreeIds));
+echo str_repeat('=====', $chunkSize) . "\n";
+echo pettyTable(array_chunk($browserFreeIds, $chunkSize, true));
 echo str_repeat('=====', $chunkSize) . "\n";
