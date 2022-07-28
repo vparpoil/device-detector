@@ -5,6 +5,16 @@
 # @license http://www.gnu.org/licenses/lgpl.html LGPL v3 or later
 ###############
 
+# HTTPX (https://www.python-httpx.org/)
+- regex: 'python-httpx(?:/(\d+[\.\d]+))?'
+  name: 'HTTPX'
+  version: '$1'
+
+# fasthttp (https://github.com/valyala/fasthttp)
+- regex: 'fasthttp(?:/(\d+[\.\d]+))?'
+  name: 'fasthttp'
+  version: '$1'
+
 # GeoIP Update (https://github.com/maxmind/geoipupdate)
 - regex: 'geoipupdate(?:/(\d+[\.\d]+))?'
   name: 'GeoIP Update'
@@ -46,6 +56,11 @@
   name: 'Python Requests'
   version: '$1'
 
+- regex: 'Python-httplib2(?:/(\d+[\.\d]+))?'
+  name: 'httplib2'
+  version: '$1'
+  url: 'https://pypi.org/project/httplib2/'
+
 - regex: 'Python-urllib(?:/?(\d+[\.\d]+))?'
   name: 'Python urllib'
   version: '$1'
@@ -66,7 +81,15 @@
   name: 'Perl'
   version: '$1'
 
-- regex: 'okhttp/([\d\.]+)'
+- regex: 'grpc-java-okhttp/([\d\.]+)'
+  name: 'gRPC-Java'
+  version: '$1'
+  url: 'https://github.com/grpc/grpc-java'
+
+- regex: '(?:okhttp|network-okhttp3)/([\d\.]+)'
+  name: 'OkHttp'
+  version: '$1'
+- regex: 'okhttp3-([\d\.]+)'
   name: 'OkHttp'
   version: '$1'
 
@@ -216,4 +239,24 @@
 # jsdom (https://github.com/jsdom/jsdom)
 - regex: 'jsdom/([\.\d]+)'
   name: 'jsdom'
+  version: '$1'
+
+# hackney (https://github.com/benoitc/hackney)
+- regex: 'hackney/([\.\d]+)'
+  name: 'hackney'
+  version: '$1'
+
+# Resty (https://github.com/go-resty/resty)
+- regex: 'go-resty/([\.\d]+)'
+  name: 'Resty'
+  version: '$1'
+
+# Pa11y (https://pa11y.org/)
+- regex: 'pa11y/([\.\d]+)'
+  name: 'Pa11y'
+  version: '$1'
+
+# Ultimate Sitemap Parser (https://github.com/mediacloud/ultimate-sitemap-parser)
+- regex: 'ultimate_sitemap_parser/([\.\d]+)'
+  name: 'Ultimate Sitemap Parser'
   version: '$1'
