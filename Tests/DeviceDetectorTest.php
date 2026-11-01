@@ -12,14 +12,18 @@ declare(strict_types=1);
 
 namespace DeviceDetector\Tests;
 
+use Closure;
 use DeviceDetector\Cache\DoctrineBridge;
 use DeviceDetector\ClientHints;
 use DeviceDetector\DeviceDetector;
 use DeviceDetector\Parser\AbstractParser;
+use DeviceDetector\Parser\Client\Browser;
+use DeviceDetector\Parser\Client\MobileApp;
 use DeviceDetector\Parser\Device\AbstractDeviceParser;
 use DeviceDetector\Parser\Device\Mobile;
 use DeviceDetector\Yaml\Symfony;
 use Doctrine\Common\Cache\MemcachedCache;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class DeviceDetectorTest extends TestCase
@@ -40,10 +44,9 @@ class DeviceDetectorTest extends TestCase
 
     public function testDevicesYmlFiles(): void
     {
-        $allowedKeys  = ['regex', 'device', 'models', 'model', 'brand'];
-        $fixtureFiles = \glob(\realpath(__DIR__) . '/../regexes/device/*.yml');
+        $allowedKeys = ['regex', 'device', 'models', 'model', 'brand'];
 
-        foreach ($fixtureFiles as $file) {
+        foreach (\glob(\realpath(__DIR__) . '/../regexes/device/*.yml') as $file) {
             $ymlData = \Spyc::YAMLLoad($file);
 
             $availableDeviceTypeNames = AbstractDeviceParser::getAvailableDeviceTypeNames();
@@ -54,7 +57,7 @@ class DeviceDetectorTest extends TestCase
                 $keys = \array_keys($regex);
 
                 foreach ($keys as $key) {
-                    $this->assertTrue(\in_array($key, $allowedKeys), \sprintf(
+                    $this->assertContains($key, $allowedKeys, \sprintf(
                         'Unknown key `%s`, file %s, brand %s',
                         $key,
                         $file,
@@ -62,8 +65,15 @@ class DeviceDetectorTest extends TestCase
                     ));
                 }
 
-                $this->assertTrue(false === \strpos($regex['regex'], '||'), \sprintf(
+                $this->assertFalse(\strpos($regex['regex'], '||'), \sprintf(
                     'Detect `||` in regex, file %s, brand %s, common regex %s',
+                    $file,
+                    $brand,
+                    $regex['regex']
+                ));
+
+                $this->assertTrue($this->checkRegexRestrictionAndroidOsVersionCondition($regex['regex']), \sprintf(
+                    'Detect `Android \d;` in regex, file %s, brand %s, common regex %s',
                     $file,
                     $brand,
                     $regex['regex']
@@ -84,7 +94,7 @@ class DeviceDetectorTest extends TestCase
                 ));
 
                 if (\array_key_exists('device', $regex)) {
-                    $this->assertTrue(\in_array($regex['device'], $availableDeviceTypeNames), \sprintf(
+                    $this->assertContains($regex['device'], $availableDeviceTypeNames, \sprintf(
                         "Unknown device type `%s`, file %s, brand %s, common regex %s\n\nAvailable types:\n%s\n",
                         $regex['device'],
                         $file,
@@ -101,7 +111,7 @@ class DeviceDetectorTest extends TestCase
                         $keys = \array_keys($model);
 
                         foreach ($keys as $key) {
-                            $this->assertTrue(\in_array($key, $allowedKeys), \sprintf(
+                            $this->assertContains($key, $allowedKeys, \sprintf(
                                 'Unknown key `%s`, file %s, brand %s, model regex %s',
                                 $key,
                                 $file,
@@ -117,7 +127,7 @@ class DeviceDetectorTest extends TestCase
                             $brand,
                             $model['regex']
                         ));
-                        $this->assertTrue(false === \strpos($model['regex'], '||'), \sprintf(
+                        $this->assertFalse(\strpos($model['regex'], '||'), \sprintf(
                             'Detect `||` in regex, file %s, brand %s, model regex %s',
                             $file,
                             $brand,
@@ -142,7 +152,7 @@ class DeviceDetectorTest extends TestCase
                             continue;
                         }
 
-                        $this->assertTrue(\in_array($model['device'], $availableDeviceTypeNames), \sprintf(
+                        $this->assertContains($model['device'], $availableDeviceTypeNames, \sprintf(
                             "Unknown device type `%s`, file %s, brand %s, model regex %s\n\nAvailable types:\n%s\n",
                             $model['device'],
                             $file,
@@ -169,7 +179,7 @@ class DeviceDetectorTest extends TestCase
 
     public function testCacheSetAndGet(): void
     {
-        if (!\extension_loaded('memcached') || !\class_exists('\Doctrine\Common\Cache\MemcachedCache')) {
+        if (!\class_exists('\Doctrine\Common\Cache\MemcachedCache') || !\extension_loaded('memcached')) {
             $this->markTestSkipped('memcached not enabled');
         }
 
@@ -209,6 +219,7 @@ class DeviceDetectorTest extends TestCase
     /**
      * @dataProvider getFixtures
      */
+    #[DataProvider('getFixtures')]
     public function testParse(array $fixtureData): void
     {
         $ua          = $fixtureData['user_agent'];
@@ -237,12 +248,9 @@ class DeviceDetectorTest extends TestCase
         $this->assertEquals($fixtureData, $uaInfo, $errorMessage);
     }
 
-    public function getFixtures(): array
+    public static function getFixtures(): \Generator
     {
-        $fixtures     = [];
-        $fixtureFiles = \glob(\realpath(__DIR__) . '/fixtures/*.yml');
-
-        foreach ($fixtureFiles as $fixturesPath) {
+        foreach (\glob(\realpath(__DIR__) . '/fixtures/*.yml') as $fixturesPath) {
             $typeFixtures = \Spyc::YAMLLoad($fixturesPath);
             $deviceType   = \str_replace('_', ' ', \substr(\basename($fixturesPath), 0, -4));
 
@@ -250,12 +258,170 @@ class DeviceDetectorTest extends TestCase
                 continue;
             }
 
-            $fixtures = \array_merge(\array_map(static function ($elem) {
-                return [$elem];
-            }, $typeFixtures), $fixtures);
+            foreach ($typeFixtures as $fixture) {
+                yield [$fixture];
+            }
+        }
+    }
+
+    /**
+     * @dataProvider getFixturesClient
+     */
+    #[DataProvider('getFixturesClient')]
+    public function testParseClient(array $fixtureData): void
+    {
+        $ua          = $fixtureData['user_agent'];
+        $clientHints = !empty($fixtureData['headers']) ? ClientHints::factory($fixtureData['headers']) : null;
+
+        AbstractDeviceParser::setVersionTruncation(AbstractDeviceParser::VERSION_TRUNCATION_NONE);
+
+        try {
+            $uaInfo = DeviceDetector::getInfoFromUserAgent($ua, $clientHints);
+        } catch (\Exception $exception) {
+            throw new \Exception(
+                \sprintf('Error: %s from useragent %s', $exception->getMessage(), $ua),
+                $exception->getCode(),
+                $exception
+            );
         }
 
-        return $fixtures;
+        $messageError = \sprintf(
+            "Fixture:\n%s\nResult:\n%s",
+            \Spyc::YAMLDump($fixtureData, 2, 0),
+            \Spyc::YAMLDump($uaInfo, 2, 0)
+        );
+
+        unset($fixtureData['headers'], $fixtureData['client']['family']); // ignore headers and client family in result
+
+        $this->assertArrayNotHasKey('bot', $uaInfo, $messageError);
+        $this->assertEquals($fixtureData['client'], $uaInfo['client'], $messageError);
+    }
+
+    public static function getFixturesClient(): \Generator
+    {
+        foreach (\glob(\realpath(__DIR__) . '/Parser/Client/fixtures/*.yml') as $fixturesPath) {
+            foreach (\Spyc::YAMLLoad($fixturesPath) as $fixture) {
+                yield [$fixture];
+            }
+        }
+    }
+
+    /**
+     * @dataProvider getFixturesDevice
+     */
+    #[DataProvider('getFixturesDevice')]
+    public function testParseDevice(array $fixtureData): void
+    {
+        $ua          = $fixtureData['user_agent'];
+        $clientHints = !empty($fixtureData['headers']) ? ClientHints::factory($fixtureData['headers']) : null;
+
+        AbstractDeviceParser::setVersionTruncation(AbstractDeviceParser::VERSION_TRUNCATION_NONE);
+
+        try {
+            $uaInfo = DeviceDetector::getInfoFromUserAgent($ua, $clientHints);
+        } catch (\Exception $exception) {
+            throw new \Exception(
+                \sprintf('Error: %s from useragent %s', $exception->getMessage(), $ua),
+                $exception->getCode(),
+                $exception
+            );
+        }
+
+        $this->assertArrayNotHasKey('bot', $uaInfo);
+        $this->assertEquals($fixtureData['device'], $uaInfo['device']);
+    }
+
+    public static function getFixturesDevice(): \Generator
+    {
+        foreach (\glob(\realpath(__DIR__) . '/Parser/Device/fixtures/*.yml') as $fixturesPath) {
+            foreach (\Spyc::YAMLLoad($fixturesPath) as $fixture) {
+                yield [$fixture];
+            }
+        }
+    }
+
+    public static function getFixturesDeviceTypeFromClientHints(): array
+    {
+        $useragent  = 'Some Unknown UA';
+        $deviceName = '"Some Unknown Model"';
+
+        return [
+            [
+                'useragent' => $useragent,
+                'headers'   => [
+                    'sec-ch-ua-form-factors' => '"EInk", "Watch"',
+                    'sec-ch-ua-model'        => $deviceName,
+                ],
+                'device'    => AbstractDeviceParser::DEVICE_TYPE_WEARABLE,
+            ], [
+                'useragent' => $useragent,
+                'headers'   => [
+                    'sec-ch-ua-form-factors' => '"EInk"',
+                    'sec-ch-ua-model'        => $deviceName,
+                ],
+                'device'    => AbstractDeviceParser::DEVICE_TYPE_TABLET,
+            ], [
+                'useragent' => $useragent,
+                'headers'   => [
+                    'sec-ch-ua-form-factors' => '"Desktop", "Mobile"',
+                    'sec-ch-ua-model'        => $deviceName,
+                ],
+                'device'    => AbstractDeviceParser::DEVICE_TYPE_SMARTPHONE,
+            ], [
+                'useragent' => $useragent,
+                'headers'   => [
+                    'sec-ch-ua-form-factors' => '"Unknown Type", "Mobile"',
+                    'sec-ch-ua-model'        => $deviceName,
+                ],
+                'device'    => AbstractDeviceParser::DEVICE_TYPE_SMARTPHONE,
+            ], [
+                'useragent' => $useragent,
+                'headers'   => [
+                    'sec-ch-ua-form-factors' => '"Tablet", "Mobile"',
+                    'sec-ch-ua-model'        => $deviceName,
+                ],
+                'device'    => AbstractDeviceParser::DEVICE_TYPE_SMARTPHONE,
+            ], [
+                'useragent' => $useragent,
+                'headers'   => [
+                    'sec-ch-ua-form-factors' => '"EInk", "Tablet"',
+                    'sec-ch-ua-model'        => $deviceName,
+                ],
+                'device'    => AbstractDeviceParser::DEVICE_TYPE_TABLET,
+            ], [
+                'useragent' => $useragent,
+                'headers'   => [
+                    'sec-ch-ua-form-factors' => '"Tablet", "Automotive"',
+                    'sec-ch-ua-model'        => $deviceName,
+                ],
+                'device'    => AbstractDeviceParser::DEVICE_TYPE_CAR_BROWSER,
+            ], [
+                'useragent' => $useragent,
+                'headers'   => [
+                    'sec-ch-ua-form-factors' => '"EInk", "Xr"',
+                    'sec-ch-ua-model'        => $deviceName,
+                ],
+                'device'    => AbstractDeviceParser::DEVICE_TYPE_WEARABLE,
+            ],
+        ];
+    }
+
+    /**
+     * @dataProvider getFixturesDeviceTypeFromClientHints
+     */
+    #[DataProvider('getFixturesDeviceTypeFromClientHints')]
+    public function testDetectDeviceTypeFromClientHints(string $useragent, array $headers, int $device): void
+    {
+        $clientHints    = ClientHints::factory($headers);
+        $deviceDetector = new DeviceDetector();
+        $deviceDetector->setClientHints($clientHints);
+        $deviceDetector->setUserAgent($useragent);
+        $deviceDetector->parse();
+
+        $this->assertEquals($device, $deviceDetector->getDevice());
+        $this->assertEquals('Some Unknown Model', $deviceDetector->getModel());
+        $this->assertEquals('', $deviceDetector->getBrandName());
+        $this->assertEquals(AbstractDeviceParser::getDeviceName($device), $deviceDetector->getDeviceName());
     }
 
     public function testInstanceReusage(): void
@@ -294,6 +460,7 @@ class DeviceDetectorTest extends TestCase
     /**
      * @dataProvider getVersionTruncationFixtures
      */
+    #[DataProvider('getVersionTruncationFixtures')]
     public function testVersionTruncation(string $useragent, int $truncationType, string $osVersion, string $clientVersion): void
     {
         AbstractParser::setVersionTruncation($truncationType);
@@ -304,7 +471,7 @@ class DeviceDetectorTest extends TestCase
         AbstractParser::setVersionTruncation(AbstractParser::VERSION_TRUNCATION_NONE);
     }
 
-    public function getVersionTruncationFixtures(): array
+    public static function getVersionTruncationFixtures(): array
     {
         return [
             ['Mozilla/5.0 (Linux; Android 4.2.2; ARCHOS 101 PLATINUM Build/JDQ39) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.114 Safari/537.36', AbstractParser::VERSION_TRUNCATION_NONE, '4.2.2', '34.0.1847.114'],
@@ -319,16 +486,16 @@ class DeviceDetectorTest extends TestCase
     {
         $dd = $this->createPartialMock(Mobile::class, ['hasDesktopFragment']);
 
-        $dd->expects($this->once())->method('hasDesktopFragment')->willReturn(true);
+        $dd->expects($this->exactly(2))->method('hasDesktopFragment')->willReturn(true);
 
         // simulate work not use clienthints
         $dd->setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.53 Safari/537.36');
 
-        $this->assertEquals($dd->parse(), [
+        $this->assertEquals([
             'deviceType' => null,
             'model'      => '',
             'brand'      => '',
-        ]);
+        ], $dd->parse());
 
         // simulate work use clienthint + model
         $dd->setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36 Edg/103.0.1264.44');
@@ -345,14 +512,15 @@ class DeviceDetectorTest extends TestCase
             true,
             '',
             '',
-            ''
+            '',
+            []
         ));
 
-        $this->assertEquals($dd->parse(), [
-            'deviceType' => null,
+        $this->assertEquals([
+            'deviceType' => AbstractDeviceParser::DEVICE_TYPE_SMARTPHONE,
             'model'      => 'Galaxy 4',
-            'brand'      => '',
-        ]);
+            'brand'      => 'Samsung',
+        ], $dd->parse());
     }
 
     public function testVersionTruncationForClientHints(): void
@@ -372,7 +540,8 @@ class DeviceDetectorTest extends TestCase
             true,
             '',
             '',
-            ''
+            '',
+            []
         ));
         $dd->parse();
         $this->assertEquals('8.0', $dd->getOs('version'));
@@ -383,6 +552,7 @@ class DeviceDetectorTest extends TestCase
     /**
      * @dataProvider getBotFixtures
      */
+    #[DataProvider('getBotFixtures')]
     public function testParseBots(array $fixtureData): void
     {
         $ua = $fixtureData['user_agent'];
@@ -416,10 +586,15 @@ class DeviceDetectorTest extends TestCase
             'Site Monitor',
             'Social Media Agent',
             'Validator',
+            'AI Agent',
+            'AI Assistant',
+            'AI Data Scraper',
+            'AI Search Crawler',
         ];
 
-        $this->assertTrue(
-            \in_array($botData['category'], $categories, true),
+        $this->assertContains(
+            $botData['category'],
+            $categories,
             \sprintf(
                 "Unknown category: \"%s\"\nUseragent: %s\nAvailable categories:\n%s\n",
                 $botData['category'],
@@ -429,7 +604,7 @@ class DeviceDetectorTest extends TestCase
         );
     }
 
-    public function getBotFixtures(): array
+    public static function getBotFixtures(): array
     {
         $fixturesPath = \realpath(__DIR__ . '/fixtures/bots.yml');
         $fixtures     = \Spyc::YAMLLoad($fixturesPath);
@@ -446,10 +621,10 @@ class DeviceDetectorTest extends TestCase
             'bot'        => [
                 'name'     => 'Googlebot',
                 'category' => 'Search bot',
-                'url'      => 'http://www.google.com/bot.html',
+                'url'      => 'https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers',
                 'producer' => [
                     'name' => 'Google Inc.',
-                    'url'  => 'http://www.google.com',
+                    'url'  => 'https://www.google.com/',
                 ],
             ],
         ];
@@ -497,39 +672,6 @@ class DeviceDetectorTest extends TestCase
         $dd->inValidMethod();
     }
 
-    /**
-     * @dataProvider getUserAgents
-     */
-    public function testTypeMethods(string $useragent, bool $isBot, bool $isMobile, bool $isDesktop): void
-    {
-        $dd = new DeviceDetector($useragent);
-        $dd->discardBotInformation();
-        $dd->parse();
-        $this->assertEquals($isBot, $dd->isBot());
-        $this->assertEquals($isMobile, $dd->isMobile());
-        $this->assertEquals($isDesktop, $dd->isDesktop());
-    }
-
-    public function getUserAgents(): array
-    {
-        return [
-            ['Mozilla/5.0 (Linux; U; Android 5.1.1; zh-CN; TEST-XXXXX Build/LMY47V) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/78.0.3904.108 Quark/5.3.3.191 Mobile Safari/537.36', false, true, false],
-            ['Mozilla/5.0 (Linux; Android 10; HarmonyOS; TEST-XXXXX ; HMSCore 6.1.0.314) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.93 HuaweiBrowser/11.1.5.310 Mobile Safari/537.36', false, true, false],
-            ['Googlebot/2.1 (http://www.googlebot.com/bot.html)', true, false, false],
-            ['Mozilla/5.0 (Linux; Android 4.4.2; Nexus 4 Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.136 Mobile Safari/537.36', false, true, false],
-            ['Mozilla/5.0 (Linux; Android 4.4.3; Build/KTU84L) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.117 Mobile Safari/537.36', false, true, false],
-            ['Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)', false, false, true],
-            ['Mozilla/3.01 (compatible;)', false, false, false],
-            // Mobile only browsers:
-            ['Opera/9.80 (J2ME/MIDP; Opera Mini/9.5/37.8069; U; en) Presto/2.12.423 Version/12.16', false, true, false],
-            ['Mozilla/5.0 (X11; U; Linux i686; th-TH@calendar=gregorian) AppleWebKit/534.12 (KHTML, like Gecko) Puffin/1.3.2665MS Safari/534.12', false, true, false],
-            ['Mozilla/5.0 (Linux; Android 4.4.4; MX4 Pro Build/KTU84P) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/33.0.0.0 Mobile Safari/537.36; 360 Aphone Browser (6.9.7)', false, true, false],
-            ['Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_5_7; xx) AppleWebKit/530.17 (KHTML, like Gecko) Version/4.0 Safari/530.17 Skyfire/6DE', false, true, false],
-            // useragent containing non unicode chars
-            ['Mozilla/5.0 (Linux; U; Android 4.1.2; ru-ru; PMP7380D3G Build/JZO54K) AppleWebKit/534.30 (KHTML, ÃÂºÃÂ°ÃÂº Gecko) Version/4.0 Safari/534.30', false, true, false],
-        ];
-    }
-
     public function testGetOs(): void
     {
         $dd = new DeviceDetector('Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)');
@@ -560,6 +702,46 @@ class DeviceDetectorTest extends TestCase
             'family'         => 'Internet Explorer',
         ];
         $this->assertEquals($expected, $dd->getClient());
+    }
+
+    public static function getTypeMethodFixtures(): array
+    {
+        $fixtureData = \Spyc::YAMLLoad(\realpath(__DIR__ . '/Parser/fixtures/type-methods.yml'));
+
+        $fixtureData = \array_map(static function (array $item): array {
+            return ['ua' => $item['user_agent'], 'checkTypes' => $item['check']];
+        }, $fixtureData);
+
+        return $fixtureData;
+    }
+
+    /**
+     * @dataProvider getTypeMethodFixtures
+     */
+    #[DataProvider('getTypeMethodFixtures')]
+    public function testTypeMethods(string $ua, array $checkTypes): void
+    {
+        try {
+            $dd = $this->getDeviceDetector();
+            $dd->discardBotInformation();
+            $dd->setUserAgent($ua);
+            $dd->parse();
+        } catch (\Exception $exception) {
+            throw new \Exception(
+                \sprintf('Error: %s from useragent %s', $exception->getMessage(), $ua),
+                $exception->getCode(),
+                $exception
+            );
+        }
+
+        $this->assertEquals([
+            $dd->isBot(), $dd->isMobile(), $dd->isDesktop(),
+            $dd->isTablet(), $dd->isTV(), $dd->isWearable(),
+        ], $checkTypes, \sprintf(
+            "test: %s\nfrom useragent %s",
+            '[isBot(), isMobile(), isDesktop(), isTablet(), isTV(), isWearable()]',
+            $ua
+        ));
     }
 
     public function testGetBrandName(): void
@@ -607,11 +789,35 @@ class DeviceDetectorTest extends TestCase
 
     public function testSetYamlParser(): void
     {
+        $reader = function & ($object, $property) {
+            $value = & Closure::bind(function & () use ($property) {
+                return $this->$property;
+            }, $object, $object)->__invoke();
+
+            return $value;
+        };
+
         $dd = new DeviceDetector();
         $dd->setYamlParser(new Symfony());
         $dd->setUserAgent('Mozilla/5.0 (Linux; Android 4.2.2; ARCHOS 101 PLATINUM Build/JDQ39) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.114 Safari/537.36');
+
         $dd->parse();
         $this->assertTrue($dd->isMobile());
+        $this->assertInstanceOf(Symfony::class, $dd->getYamlParser());
+
+        foreach ($dd->getClientParsers() as $parser) {
+            if ($parser instanceof MobileApp) {
+                $appHints = & $reader($parser, 'appHints');
+                $this->assertInstanceOf(Symfony::class, $appHints->getYamlParser());
+            }
+
+            if (!($parser instanceof Browser)) {
+                continue;
+            }
+
+            $browserHints = & $reader($parser, 'browserHints');
+            $this->assertInstanceOf(Symfony::class, $browserHints->getYamlParser());
+        }
     }
 
     public function testCheckRegexRestrictionEndCondition(): void
@@ -669,7 +875,25 @@ class DeviceDetectorTest extends TestCase
     protected function checkRegexVerticalLineClosingGroup(string $regexString): bool
     {
         if (false !== \strpos($regexString, '|)')) {
-            return !\preg_match('#(?<!\\\)(\|\))#is', $regexString);
+            return !\preg_match('#(?<!\\\)(\|\))#', $regexString);
+        }
+
+        return true;
+    }
+
+    /**
+     * check the regular expression for regex `Android \d([\d.]*)? condition constraint
+     * (This needs to be checked since the version with client prompts is not trimmed)
+     *
+     * @param string $regexString
+     *
+     * @return bool
+     */
+    protected function checkRegexRestrictionAndroidOsVersionCondition(string $regexString): bool
+    {
+        // check regex is condition android \d
+        if (\preg_match('~Android (\d|\[)~i', $regexString)) {
+            return !\preg_match('~android (\d|\[\d+\]);~', $regexString);
         }
 
         return true;
@@ -700,5 +924,16 @@ class DeviceDetectorTest extends TestCase
         }
 
         return true;
+    }
+
+    private function getDeviceDetector(): DeviceDetector
+    {
+        static $dd;
+
+        if (null === $dd) {
+            $dd = new DeviceDetector();
+        }
+
+        return $dd;
     }
 }
