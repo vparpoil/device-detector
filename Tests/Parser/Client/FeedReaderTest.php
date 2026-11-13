@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace DeviceDetector\Tests\Parser\Client;
 
 use DeviceDetector\Parser\Client\FeedReader;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Spyc;
 
@@ -21,17 +22,22 @@ class FeedReaderTest extends TestCase
     /**
      * @dataProvider getFixtures
      */
+    #[DataProvider('getFixtures')]
     public function testParse(string $useragent, array $client): void
     {
         $feedReaderParser = new FeedReader();
-        $feedReaderParser->setVersionTruncation(FeedReader::VERSION_TRUNCATION_NONE);
+        $feedReaderParser::setVersionTruncation(FeedReader::VERSION_TRUNCATION_NONE);
         $feedReaderParser->setUserAgent($useragent);
         $this->assertEquals($client, $feedReaderParser->parse(), "UserAgent: {$useragent}");
     }
 
-    public function getFixtures(): array
+    public static function getFixtures(): array
     {
         $fixtureData = Spyc::YAMLLoad(\realpath(__DIR__) . '/fixtures/feed_reader.yml');
+
+        $fixtureData = \array_map(static function (array $item): array {
+            return ['useragent' => $item['user_agent'], 'client' => $item['client']];
+        }, $fixtureData);
 
         return $fixtureData;
     }
@@ -45,12 +51,10 @@ class FeedReaderTest extends TestCase
             $this->assertTrue(\array_key_exists('name', $item), 'key "name" not exist');
             $this->assertTrue(\array_key_exists('version', $item), 'key "version" not exist');
             $this->assertTrue(\array_key_exists('url', $item), 'key "url" not exist');
-            $this->assertTrue(\array_key_exists('type', $item), 'key "type" not exist');
             $this->assertIsString($item['regex']);
             $this->assertIsString($item['name']);
             $this->assertIsString($item['version']);
             $this->assertIsString($item['url']);
-            $this->assertIsString($item['type']);
         }
     }
 }

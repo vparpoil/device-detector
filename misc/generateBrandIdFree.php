@@ -7,9 +7,9 @@ require __DIR__ . '/../vendor/autoload.php';
 use DeviceDetector\Parser\Client\Browser;
 use DeviceDetector\Parser\Device\AbstractDeviceParser;
 
-if ('cli' !== php_sapi_name()) {
+if ('cli' !== PHP_SAPI) {
     echo 'web not supported';
-    exit;
+    exit(0);
 }
 
 $mapIds = [];

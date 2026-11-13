@@ -23,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v7
 
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-suggest --ignore-platform-reqs
+        run: composer install --prefer-dist --no-progress --ignore-platform-reqs
 
       - name: update readme
         run: php misc/updateReadme.php
@@ -59,7 +59,7 @@ jobs:
               git push --set-upstream origin updatereadme
               curl \
                    --request POST \
-                   --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+                   --header 'authorization: Bearer ${{ secrets.CUSTOM_ACCESS_TOKEN }}' \
                    --header 'content-type: application/json' \
                    --data '{
                     "title":"Update README.md",

@@ -16,6 +16,7 @@ use DeviceDetector\ClientHints;
 use DeviceDetector\Parser\Client\Browser;
 use DeviceDetector\Parser\Client\Browser\Engine;
 use DeviceDetector\Parser\Client\Hints\BrowserHints;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Spyc;
 
@@ -26,10 +27,11 @@ class BrowserTest extends TestCase
     /**
      * @dataProvider getFixtures
      */
+    #[DataProvider('getFixtures')]
     public function testParse(string $useragent, array $client, ?array $headers = null): void
     {
         $browserParser = new Browser();
-        $browserParser->setVersionTruncation(Browser::VERSION_TRUNCATION_NONE);
+        $browserParser::setVersionTruncation(Browser::VERSION_TRUNCATION_NONE);
         $browserParser->setUserAgent($useragent);
 
         if (null !== $headers) {
@@ -49,9 +51,13 @@ class BrowserTest extends TestCase
         self::$browsersTested[] = $client['name'];
     }
 
-    public function getFixtures(): array
+    public static function getFixtures(): array
     {
         $fixtureData = Spyc::YAMLLoad(\realpath(__DIR__) . '/fixtures/browser.yml');
+
+        $fixtureData = \array_map(static function (array $item): array {
+            return ['useragent' => $item['user_agent'], 'client' => $item['client'], 'headers' => $item['headers'] ?? null];
+        }, $fixtureData);
 
         return $fixtureData;
     }
@@ -65,7 +71,7 @@ class BrowserTest extends TestCase
     {
         $allBrowsers       = \array_values(Browser::getAvailableBrowsers());
         $browsersNotTested = \array_diff($allBrowsers, self::$browsersTested);
-        $this->assertEmpty($browsersNotTested, 'This browsers are not tested: ' . \implode(', ', $browsersNotTested));
+        $this->assertEmpty($browsersNotTested, 'Following browsers are not tested: ' . \implode(', ', $browsersNotTested));
     }
 
     public function testGetAvailableClients(): void
@@ -90,12 +96,8 @@ class BrowserTest extends TestCase
 
     public function testBrowserFamiliesNoDuplicates(): void
     {
-        $browsers = Browser::getAvailableBrowserFamilies();
-
-        foreach ($browsers as $browser => $families) {
-            $shortcodes = \array_count_values($families);
-
-            foreach ($shortcodes as $shortcode => $count) {
+        foreach (Browser::getAvailableBrowserFamilies() as $browser => $families) {
+            foreach (\array_count_values($families) as $shortcode => $count) {
                 $this->assertEquals(
                     $count,
                     1,
@@ -105,13 +107,51 @@ class BrowserTest extends TestCase
         }
     }
 
+    public function testShortCodesComparisonWithBrowsers(): void
+    {
+        $reflectionClass = new \ReflectionClass(Browser::class);
+        $browserProperty = $reflectionClass->getProperty('availableBrowsers');
+
+        if (PHP_VERSION_ID < 80500) {
+            $browserProperty->setAccessible(true);
+        }
+
+        $availableBrowsers = $browserProperty->getValue();
+
+        $browserFamilyProperty = $reflectionClass->getProperty('browserFamilies');
+
+        if (PHP_VERSION_ID < 80500) {
+            $browserFamilyProperty->setAccessible(true);
+        }
+
+        $browserFamilies = $browserFamilyProperty->getValue();
+        $result          = [];
+
+        foreach ($browserFamilies as $codes) {
+            foreach ($codes as $code) {
+                if (isset($availableBrowsers[$code])) {
+                    continue;
+                }
+
+                $result[] = $code;
+            }
+        }
+
+        $this->assertEquals([], $result, 'These shortcode does not match the list of browsers');
+    }
+
     /**
      * @return array
+     * @throws \ReflectionException
      */
-    public function getFixturesBrowserHints(): array
+    public static function getFixturesBrowserHints(): array
     {
         $method = new \ReflectionMethod(BrowserHints::class, 'getRegexes');
-        $method->setAccessible(true);
+
+        if (PHP_VERSION_ID < 80500) {
+            $method->setAccessible(true);
+        }
+
         $hints    = $method->invoke(new BrowserHints());
         $fixtures = [];
 
@@ -125,6 +165,7 @@ class BrowserTest extends TestCase
     /**
      * @dataProvider getFixturesBrowserHints
      */
+    #[DataProvider('getFixturesBrowserHints')]
     public function testBrowserHintsForAvailableBrowsers(string $name): void
     {
         $browserShort = Browser::getBrowserShortName($name);

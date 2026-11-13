@@ -22,15 +22,19 @@ use DeviceDetector\Parser\OperatingSystem;
 
 include __DIR__ . '/../vendor/autoload.php';
 
-$brands = AbstractDeviceParser::$deviceBrands;
+$brands = array_unique(AbstractDeviceParser::$deviceBrands);
 natcasesort($brands);
 
 $bots      = [];
 $ymlParser = new Spyc();
 
-$parsedBots = $ymlParser->loadFile(__DIR__ . '/../regexes/bots.yml');
+$parsedBots = $ymlParser->loadFile(__DIR__ . '/../Tests/fixtures/bots.yml');
 
-foreach ($parsedBots as $parsedBot) {
+foreach (array_column($parsedBots, 'bot') as $parsedBot) {
+    if ('Generic Bot' === $parsedBot['name'] || in_array($parsedBot['name'], $bots, true)) {
+        continue;
+    }
+
     $bots[] = $parsedBot['name'];
 }
 
@@ -65,7 +69,8 @@ The lists below are auto generated and updated from time to time. Some of them m
 ### List of detected mobile apps:
 
 ' . implode(', ', MobileApp::getAvailableClients()) .
-' and *mobile apps using [AFNetworking](https://github.com/AFNetworking/AFNetworking)*
+' and *mobile apps using [AFNetworking](https://github.com/AFNetworking/AFNetworking)' .
+' or [Electron](https://github.com/electron/electron)*
 
 ### List of detected PIMs (personal information manager):
 
