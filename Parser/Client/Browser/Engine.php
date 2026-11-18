@@ -45,6 +45,7 @@ class Engine extends AbstractClientParser
         'iCab',
         'Elektra',
         'Presto',
+        'Clecko',
         'Gecko',
         'KHTML',
         'NetFront',
@@ -53,6 +54,10 @@ class Engine extends AbstractClientParser
         'Servo',
         'Goanna',
         'EkiohFlow',
+        'Arachne',
+        'LibWeb',
+        'Maple',
+        'ArkWeb',
     ];
 
     /**
@@ -86,7 +91,7 @@ class Engine extends AbstractClientParser
         $name = $this->buildByMatch($regex['name'], $matches);
 
         foreach (self::getAvailableEngines() as $engineName) {
-            if (\strtolower($name) === \strtolower($engineName)) {
+            if (0 === \strcasecmp($name, $engineName)) {
                 return ['engine' => $engineName];
             }
         }

@@ -13,7 +13,7 @@ declare(strict_types=1);
 use DeviceDetector\DeviceDetector;
 use DeviceDetector\Parser\Device\AbstractDeviceParser;
 
-if ('cli' !== php_sapi_name()) {
+if ('cli' !== PHP_SAPI) {
     die('web not supported');
 }
 
@@ -33,7 +33,7 @@ $deviceTypes = (array_fill(0, count(AbstractDeviceParser::getAvailableDeviceType
 
 $startTime = microtime(true);
 
-$handle = @fopen($argv[1], 'r');
+$handle = @fopen($argv[1], 'rb');
 
 $parser = new DeviceDetector();
 
@@ -100,7 +100,7 @@ $reportStat[] = $line;
 foreach ($deviceTypes as $deviceTypeId => $deviceCount) {
     $reportStat[] = sprintf(
         $mask,
-        sprintf('%s', mb_convert_case($deviceAvailableDeviceTypes[$deviceTypeId], MB_CASE_TITLE)),
+        mb_convert_case($deviceAvailableDeviceTypes[$deviceTypeId], MB_CASE_TITLE),
         format($deviceCount, $parsedUAs),
         sprintf('(%s%%)', trim(getPercentage($deviceCount, $parsedUAs)))
     );

@@ -7,22 +7,22 @@ require __DIR__ . '/../vendor/autoload.php';
 use DeviceDetector\Parser\Client\Browser;
 use DeviceDetector\Parser\Device\AbstractDeviceParser;
 
-if ('cli' !== php_sapi_name()) {
+if ('cli' !== PHP_SAPI) {
     echo 'web not supported';
-    exit;
+    exit(0);
 }
+
+// create map (max 1296)
+$chars = array_merge(
+    range('0', '9'),
+    range('A', 'Z')
+);
 
 $mapIds = [];
-// create map (max 1296)
-$c = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-for ($n = 65; $n < 123; $n++) {
-    $n < 91 || $n > 96 and $c[] = chr($n);
-}
-
-for ($y = 0; $y < 36; $y++) {
-    for ($x = 0; $x < 36; $x++) {
-        $mapIds[] = sprintf('%s%s', $c[$x], $c[$y]);
+foreach ($chars as $first) {
+    foreach ($chars as $second) {
+        $mapIds[] = $first . $second;
     }
 }
 
