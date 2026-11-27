@@ -13,27 +13,31 @@ declare(strict_types=1);
 namespace DeviceDetector\Tests\Parser\Client;
 
 use DeviceDetector\Parser\Client\MediaPlayer;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Spyc;
 
-class MediaPlayerTest extends TestCase
+final class MediaPlayerTest extends TestCase
 {
     /**
      * @dataProvider getFixtures
      */
+    #[DataProvider('getFixtures')]
     public function testParse(string $useragent, array $client): void
     {
         $mediaPlayerParser = new MediaPlayer();
-        $mediaPlayerParser->setVersionTruncation(MediaPlayer::VERSION_TRUNCATION_NONE);
+        $mediaPlayerParser::setVersionTruncation(MediaPlayer::VERSION_TRUNCATION_NONE);
         $mediaPlayerParser->setUserAgent($useragent);
         $this->assertEquals($client, $mediaPlayerParser->parse());
     }
 
-    public function getFixtures(): array
+    public static function getFixtures(): array
     {
         $fixtureData = Spyc::YAMLLoad(\realpath(__DIR__) . '/fixtures/mediaplayer.yml');
 
-        return $fixtureData;
+        return \array_map(static function (array $item): array {
+            return ['useragent' => $item['user_agent'], 'client' => $item['client']];
+        }, $fixtureData);
     }
 
     public function testStructureMediaPlayerYml(): void

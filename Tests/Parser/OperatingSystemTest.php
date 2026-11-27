@@ -14,19 +14,22 @@ namespace DeviceDetector\Tests\Parser;
 
 use DeviceDetector\ClientHints;
 use DeviceDetector\Parser\OperatingSystem;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Spyc;
 
-class OperatingSystemTest extends TestCase
+final class OperatingSystemTest extends TestCase
 {
-    protected static $osTested = [];
+    private static $osTested = [];
 
     /**
      * @dataProvider getFixtures
      */
+    #[DataProvider('getFixtures')]
     public function testParse(string $useragent, array $os, ?array $headers = null): void
     {
         $osParser = new OperatingSystem();
+        $osParser::setVersionTruncation(OperatingSystem::VERSION_TRUNCATION_NONE);
         $osParser->setUserAgent($useragent);
 
         if (null !== $headers) {
@@ -37,49 +40,51 @@ class OperatingSystemTest extends TestCase
         self::$osTested[] = $os['name'];
     }
 
-    public function getFixtures(): array
+    public static function getFixtures(): array
     {
         $fixtureData = Spyc::YAMLLoad(\realpath(__DIR__) . '/fixtures/oss.yml');
 
-        return $fixtureData;
+        return \array_map(static function (array $item): array {
+            return ['useragent' => $item['user_agent'], 'os' => $item['os'], 'headers' => $item['headers'] ?? null];
+        }, $fixtureData);
     }
 
     /**
      * @dataProvider getAllOs
      */
+    #[DataProvider('getAllOs')]
     public function testOSInGroup(string $os): void
     {
         $familyOs = \call_user_func_array('array_merge', \array_values(OperatingSystem::getAvailableOperatingSystemFamilies()));
         $this->assertContains($os, $familyOs);
     }
 
-    public function getAllOs(): array
+    public static function getAllOs(): array
     {
         $allOs = \array_keys(OperatingSystem::getAvailableOperatingSystems());
-        $allOs = \array_map(static function ($os) {
+
+        return \array_map(static function ($os): array {
             return [$os];
         }, $allOs);
-
-        return $allOs;
     }
 
     /**
      * @dataProvider getAllFamilyOs
      */
+    #[DataProvider('getAllFamilyOs')]
     public function testFamilyOSExists(string $os): void
     {
         $allOs = \array_keys(OperatingSystem::getAvailableOperatingSystems());
         $this->assertContains($os, $allOs);
     }
 
-    public function getAllFamilyOs(): array
+    public static function getAllFamilyOs(): array
     {
         $allFamilyOs = \call_user_func_array('array_merge', \array_values(OperatingSystem::getAvailableOperatingSystemFamilies()));
-        $allFamilyOs = \array_map(static function ($os) {
+
+        return \array_map(static function ($os): array {
             return [$os];
         }, $allFamilyOs);
-
-        return $allFamilyOs;
     }
 
     public function testGetAvailableOperatingSystems(): void
@@ -90,12 +95,13 @@ class OperatingSystemTest extends TestCase
     /**
      * @dataProvider getNameFromIds
      */
+    #[DataProvider('getNameFromIds')]
     public function testGetNameFromId(string $os, string $version, ?string $expected): void
     {
         $this->assertEquals($expected, OperatingSystem::getNameFromId($os, $version));
     }
 
-    public function getNameFromIds(): array
+    public static function getNameFromIds(): array
     {
         return [
             ['DEB', '4.5', 'Debian 4.5'],

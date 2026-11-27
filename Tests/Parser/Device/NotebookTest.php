@@ -13,14 +13,16 @@ declare(strict_types=1);
 namespace DeviceDetector\Tests\Parser\Device;
 
 use DeviceDetector\Parser\Device\Notebook;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Spyc;
 
-class NotebookTest extends TestCase
+final class NotebookTest extends TestCase
 {
     /**
      * @dataProvider getFixtures
      */
+    #[DataProvider('getFixtures')]
     public function testParse(string $useragent, array $device): void
     {
         $notebookParser = new Notebook();
@@ -31,10 +33,12 @@ class NotebookTest extends TestCase
         $this->assertEquals($device['model'], $notebookParser->getModel());
     }
 
-    public function getFixtures(): array
+    public static function getFixtures(): array
     {
         $fixtureData = Spyc::YAMLLoad(\realpath(__DIR__) . '/fixtures/notebook.yml');
 
-        return $fixtureData;
+        return \array_map(static function (array $item): array {
+            return ['useragent' => $item['user_agent'], 'device' => $item['device']];
+        }, $fixtureData);
     }
 }

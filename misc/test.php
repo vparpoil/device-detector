@@ -15,21 +15,21 @@ require __DIR__ . '/../vendor/autoload.php';
 use DeviceDetector\DeviceDetector;
 use DeviceDetector\Parser\Device\AbstractDeviceParser;
 
-if ('cli' === php_sapi_name()) {
+if ('cli' === PHP_SAPI) {
     if (isset($argv[1])) {
         $userAgent = $argv[1];
     }
 } else {
-    $userAgent = $_GET['ua'] ?? $_SERVER['HTTP_USER_AGENT'];
+    $userAgent = $_GET['ua'] ?? $_SERVER['HTTP_USER_AGENT'] ?? '';
 }
 
 AbstractDeviceParser::setVersionTruncation(AbstractDeviceParser::VERSION_TRUNCATION_NONE);
 
 $result = DeviceDetector::getInfoFromUserAgent($userAgent);
 
-if ('cli' === php_sapi_name()) {
+if ('cli' === PHP_SAPI) {
     echo Spyc::YAMLDump($result, 2, 0);
-    exit;
+    exit(0);
 }
 
 echo '<form><input type="text" name="ua" /><input type="submit" /></form>';

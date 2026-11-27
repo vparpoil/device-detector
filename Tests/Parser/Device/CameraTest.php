@@ -13,28 +13,32 @@ declare(strict_types=1);
 namespace DeviceDetector\Tests\Parser\Device;
 
 use DeviceDetector\Parser\Device\Camera;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Spyc;
 
-class CameraTest extends TestCase
+final class CameraTest extends TestCase
 {
     /**
      * @dataProvider getFixtures
      */
+    #[DataProvider('getFixtures')]
     public function testParse(string $useragent, array $device): void
     {
         $consoleParser = new Camera();
         $consoleParser->setUserAgent($useragent);
-        $this->assertTrue(\is_array($consoleParser->parse()));
+        $this->assertIsArray($consoleParser->parse());
         $this->assertEquals($device['type'], Camera::getDeviceName($consoleParser->getDeviceType()));
         $this->assertEquals($device['brand'], $consoleParser->getBrand());
         $this->assertEquals($device['model'], $consoleParser->getModel());
     }
 
-    public function getFixtures(): array
+    public static function getFixtures(): array
     {
         $fixtureData = Spyc::YAMLLoad(\realpath(__DIR__) . '/fixtures/camera.yml');
 
-        return $fixtureData;
+        return \array_map(static function (array $item): array {
+            return ['useragent' => $item['user_agent'], 'device' => $item['device']];
+        }, $fixtureData);
     }
 }
